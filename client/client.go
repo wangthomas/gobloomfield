@@ -3,6 +3,7 @@ package client
 import (
 
 	"context"
+	"time"
 	
 	"google.golang.org/grpc"
 
@@ -53,7 +54,7 @@ func (t *bloomClient) Create(ctx context.Context, filter string) error {
 // Add issues a command to add a specified key to a given filter
 func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) error {
 	req := &pb.KeyRequest{
-		Name: filter,
+		FilterName: filter,
 		Hashes: hashes,
 	}
 
@@ -66,14 +67,14 @@ func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) e
 // Has checks if a given key exists in a specified filter
 func (t *bloomClient) Has(ctx context.Context, filter string, hashes []uint64) (bool, error) {
 	req := &pb.KeyRequest{
-		Name: filter,
+		FilterName: filter,
 		Hashes: hashes,
 	}
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 	resp, err := t.client.Has(timedCtx, req)
-	var has []bool
+	var has bool
 	if resp != nil {
 		has = resp.Has
 	}
@@ -87,7 +88,7 @@ func (t *bloomClient) Drop(ctx context.Context, filter string) error {
 
 	timedCtx, cancel := context.WithTimeout(context.Background(), t.timeout)
 	defer cancel()
-	_, err := t.client.Drop(timedCtx, req)
+	_, err := t.client.DropFilter(timedCtx, req)
 	return err
 }
 
