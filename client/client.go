@@ -4,17 +4,19 @@ import (
 
 	"context"
 	"time"
+	"hash/fnv"
 	
 	"google.golang.org/grpc"
 
+	"github.com/OneOfOne/xxhash"
 	pb "github.com/wangthomas/bloomfield/interfaces/gRPC/bloomfieldpb"
 )
 
 
 type Client interface {
 	Create(ctx context.Context, filter string) error
-	Add(ctx context.Context, filter string, hashes []uint64) (bool, error)
-	Has(ctx context.Context, filter string, hashes []uint64) (bool, error)
+	Add(ctx context.Context, filter string, key string) (bool, error)
+	Has(ctx context.Context, filter string, key string) (bool, error)
 	Drop(ctx context.Context, filter string) error
 	Shutdown()
 }
@@ -52,10 +54,11 @@ func (t *bloomClient) Create(ctx context.Context, filter string) error {
 }
 
 // Add issues a command to add a specified key to a given filter
-func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) (bool, error) {
+func (t *bloomClient) Add(ctx context.Context, filter string, key string) (bool, error) {
+
 	req := &pb.KeyRequest{
 		FilterName: filter,
-		Hashes: hashes,
+		Hashes: getHashes(key),
 	}
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
@@ -69,10 +72,10 @@ func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) (
 }
 
 // Has checks if a given key exists in a specified filter
-func (t *bloomClient) Has(ctx context.Context, filter string, hashes []uint64) (bool, error) {
+func (t *bloomClient) Has(ctx context.Context, filter string, key string) (bool, error) {
 	req := &pb.KeyRequest{
 		FilterName: filter,
-		Hashes: hashes,
+		Hashes: getHashes(key),
 	}
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
@@ -99,5 +102,18 @@ func (t *bloomClient) Drop(ctx context.Context, filter string) error {
 // Shutdown terminates the connection to the server
 func (t *bloomClient) Shutdown() {
 	t.conn.Close()
+}
+
+
+func getHashes(key string) []uint64 {
+	h1 := fnv.New64a()
+    h1.Write([]byte(key))
+    hash1 := h1.Sum64()
+
+    h2 := xxhash.New64()
+    h2.Write([]byte(key))
+    hash2 := h2.Sum64()
+
+    return []uint64{hash1, hash2}
 }
 
