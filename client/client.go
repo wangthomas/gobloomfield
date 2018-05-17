@@ -13,7 +13,7 @@ import (
 
 type Client interface {
 	Create(ctx context.Context, filter string) error
-	Add(ctx context.Context, filter string, hashes []uint64) error
+	Add(ctx context.Context, filter string, hashes []uint64) (bool, error)
 	Has(ctx context.Context, filter string, hashes []uint64) (bool, error)
 	Drop(ctx context.Context, filter string) error
 	Shutdown()
@@ -52,7 +52,7 @@ func (t *bloomClient) Create(ctx context.Context, filter string) error {
 }
 
 // Add issues a command to add a specified key to a given filter
-func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) error {
+func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) (bool, error) {
 	req := &pb.KeyRequest{
 		FilterName: filter,
 		Hashes: hashes,
@@ -60,8 +60,12 @@ func (t *bloomClient) Add(ctx context.Context, filter string, hashes []uint64) e
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
-	_, err := t.client.Add(timedCtx, req)
-	return err
+	resp, err := t.client.Add(timedCtx, req)
+	var has bool
+	if resp != nil {
+		has = resp.Has
+	}
+	return has, err
 }
 
 // Has checks if a given key exists in a specified filter
