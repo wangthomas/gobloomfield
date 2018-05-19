@@ -15,8 +15,8 @@ import (
 
 type Client interface {
 	Create(ctx context.Context, filter string) error
-	Add(ctx context.Context, filter string, key string) (bool, error)
-	Has(ctx context.Context, filter string, key string) (bool, error)
+	Add(ctx context.Context, filter string, keys []string) ([]bool, error)
+	Has(ctx context.Context, filter string, keys []string) ([]bool, error)
 	Drop(ctx context.Context, filter string) error
 	Shutdown()
 }
@@ -54,17 +54,17 @@ func (t *bloomClient) Create(ctx context.Context, filter string) error {
 }
 
 // Add issues a command to add a specified key to a given filter
-func (t *bloomClient) Add(ctx context.Context, filter string, key string) (bool, error) {
+func (t *bloomClient) Add(ctx context.Context, filter string, keys []string) ([]bool, error) {
 
 	req := &pb.KeyRequest{
 		FilterName: filter,
-		Hashes: getHashes(key),
+		Hashes: getHashes(keys),
 	}
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 	resp, err := t.client.Add(timedCtx, req)
-	var has bool
+	var has []bool
 	if resp != nil {
 		has = resp.Has
 	}
@@ -72,16 +72,16 @@ func (t *bloomClient) Add(ctx context.Context, filter string, key string) (bool,
 }
 
 // Has checks if a given key exists in a specified filter
-func (t *bloomClient) Has(ctx context.Context, filter string, key string) (bool, error) {
+func (t *bloomClient) Has(ctx context.Context, filter string, keys []string) ([]bool, error) {
 	req := &pb.KeyRequest{
 		FilterName: filter,
-		Hashes: getHashes(key),
+		Hashes: getHashes(keys),
 	}
 
 	timedCtx, cancel := context.WithTimeout(ctx, t.timeout)
 	defer cancel()
 	resp, err := t.client.Has(timedCtx, req)
-	var has bool
+	var has []bool
 	if resp != nil {
 		has = resp.Has
 	}
@@ -105,15 +105,23 @@ func (t *bloomClient) Shutdown() {
 }
 
 
-func getHashes(key string) []uint64 {
-	h1 := fnv.New64a()
-    h1.Write([]byte(key))
-    hash1 := h1.Sum64()
+func getHashes(keys []string) []*pb.Hashes {
+	var hashes []*pb.Hashes
 
-    h2 := xxhash.New64()
-    h2.Write([]byte(key))
-    hash2 := h2.Sum64()
+	for _, key := range keys {
+		h1 := fnv.New64a()
+	    h1.Write([]byte(key))
+	    hash1 := h1.Sum64()
 
-    return []uint64{hash1, hash2}
+	    h2 := xxhash.New64()
+	    h2.Write([]byte(key))
+	    hash2 := h2.Sum64()
+
+	    hashes = append(hashes, &pb.Hashes{Hash1 : hash1,
+	    								   Hash2 : hash2,})
+
+	}
+
+    return hashes
 }
 
